@@ -104,11 +104,24 @@ def parse_trades(tradedate, market='shares', price_filter=''):
        'Цена первой сделки', 'Максимальная цена', 'Минимальная цена',
        'Цена последней сделки', 'Изменение цены за день, %',
        'Средневзвеш. цена', 'Объем, млн KZT']
-    #print(df[df.columns[2:-3]])
     for col in cols_float:
         df[col] = df[col].str.replace(',','.').str.replace("–", "0").str.replace(" ", "").astype('float64')
-    # print(df.columns)
     df['Количество сделок'] = df['Количество сделок'].str.replace("–","0").astype('int64')
+    df['Дни до погашения'] = df['Дни до погашения'].str.replace("–","0").str.replace('бессрочные','1000').astype('int64')
+    
+    df = df.loc[df['Объем, млн KZT']>0]
+    df["Yield, %"] = 0.0
+
+    sht_cols = ['tradedate', 
+        'Код', 'Режим','Минимальная цена','Максимальная цена', 
+        'Цена первой сделки', 'Цена последней сделки', 'Изменение цены за день, %', 
+        'Количество сделок', 'Объем, млн KZT', 
+        'Средневзвеш. цена', 'Yield, %', 'Дни до погашения']
+
+    df = df[sht_cols]
+    
+    df = df.sort_values('Дни до погашения')
+    print(df.head())
     df.to_csv(f'trades/{market}_{price_filter}_{tradedate}.csv', 
               index=False, sep=';', encoding='cp1251')
     return df
@@ -121,7 +134,7 @@ def parse_sec_info(isin: str):
         s = requests.session()
         s.headers.update(HEADERS)
         r = s.get(url)
-        with open(f'sec_info_{isin}.html', 'w', encoding='utf8') as f:
+        with open(f'sec_info_html/sec_info_{isin}.html', 'w', encoding='utf8') as f:
             f.write(r.text)
         
         return parse_sec_info_html(r.text)
@@ -167,17 +180,20 @@ def create_df_from_params_vect():
 
 
 def parse_trades_html(content: str = None):
-    if not content:
-        print("Content is null. Reading file..")
-        with open('output.html', 'r', encoding='utf8') as f:
-            content = f.read()
+    # if not content:
+    #     print("Content is null. Reading file..")
+    #     with open('output.html', 'r', encoding='utf8') as f:
+    #         content = f.read()
+    # try:
     soup = BeautifulSoup(content, features='lxml')
-    columns =[[col.text.strip() for col in row.find_all('th')] 
-              for row in soup.find('thead').find_all('tr')][0] 
+    columns = [[col.text.strip() for col in row.find_all('th')] 
+            for row in soup.find('thead').find_all('tr')][0] 
     data = [{columns[i]:col.text.strip() for i, col in enumerate(row.find_all('td'))} 
-           for row in soup.find('tbody').find_all('tr') 
-           if "Итого" not in row.find('td').text]
+        for row in soup.find('tbody').find_all('tr') 
+        if "Итого" not in row.find('td').text]
     return pd.DataFrame(data)
+    # except Exception as e:
+    #     print(content)
 
 
 def parse_sec_info_html(content: str):
@@ -201,7 +217,7 @@ def parse_sec_info_html(content: str):
     coupons_df["Список ценных бумаг"] = data_dict["Список ценных бумаг:"]
     coupons_df["Валюта котирования"] = data_dict["Валюта котирования:"]
     coupons_df["ISIN"] = data_dict["ISIN:"]
-    coupons_df["ISIN (144А)"] = data_dict["ISIN (144А):"]
+    # coupons_df["ISIN (144А)"] = data_dict["ISIN (144А):"]
     coupons_df["Дата погашения"] = data_dict["Дата погашения:"]
     coupons_df['freq'] = freq
     coupons_df['Ставка, % год.'] = coupons_df['Ставка, % год.'].str.replace(',','.').astype('float64')

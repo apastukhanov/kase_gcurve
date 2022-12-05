@@ -6,19 +6,24 @@ import plotly.express as px
 import pandas as pd
 
 from main import (create_df_from_params_vect, 
-                  download_gcurve_params,
                   get_df_with_params, parse_trades)
 
+from bonds import Bond
 
 app = Dash(__name__)
 
-pd.options.display.float_format = '${:,.4f}'.format
+pd.options.display.float_format = '{:,.4f}'.format
 
 df = create_df_from_params_vect()
 params = get_df_with_params()
 day_t = df.iloc[1]['tradedate'] 
-trades = parse_trades( f"{day_t.day}.{day_t.month}.{day_t.year}",'gsecs', '#gsec_clean')
+# trades = parse_trades( f"{day_t.day}.{day_t.month}.{day_t.year}",'gsecs', '#gsec_clean')
 
+sht_cols = ['tradedate', 
+        'Код', 'Режим','Минимальная цена','Максимальная цена', 
+        'Цена первой сделки', 'Цена последней сделки', 
+        'Количество сделок', 'Объем, млн KZT', 
+        'Средневзвеш. цена', 'Yield, %', 'Дни до погашения']
 
 fig = px.line(df.iloc[0], x=df.drop('tradedate', axis=1).columns, 
                             y = df.drop('tradedate', axis=1).iloc[0].values,
@@ -28,21 +33,21 @@ fig.update_yaxes(title='yield')
 
 
 app.layout = html.Div([
-    dcc.Dropdown(df['tradedate'].unique(), df.iloc[0]['tradedate'], id='gcurve-tradedate'),
-    html.Br(),
-    html.Button("Обновить Gcurve", id='submit-gc-update', n_clicks=0),
-    dcc.Graph(id='gcurve-fig', figure=fig),
-    html.Div(["Дюрация: ", dcc.Input(id='gcurve-input', value='1.0', type='text')]),
-    html.Br(),
-    html.Div(id='gcurve-output'),
-    html.Br(),
-    html.Div(['Параметры ГЦБ:']),
-    html.Br(),
-    dash_table.DataTable(params.iloc[:1].to_dict('records'), [{'name': i, 'id':i} for i in params.columns], id='tbl'),
-    html.Br(),
-    html.Div(['Перечень ГЦБ:']),
-    html.Br(),
-    dash_table.DataTable(trades.to_dict('records'), [{'name': i, 'id':i} for i in trades.columns], id='tbl-trades')
+        dcc.Dropdown( [{'label': str(i), 'value': str(i)} for i in df['tradedate'].unique()], id='gcurve-tradedate'),
+        html.Br(),
+        html.Button("Обновить Gcurve", id='submit-gc-update', n_clicks=0),
+        dcc.Graph(id='gcurve-fig', figure=fig),
+        html.Div(["Дюрация: ", dcc.Input(id='gcurve-input', value='1.0', type='text')]),
+        html.Br(),
+        html.Div(id='gcurve-output'),
+        html.Br(),
+        html.Div(['Параметры ГЦБ:']),
+        html.Br(),
+        dash_table.DataTable(columns=[{'name': i, 'id':i} for i in params.columns], id='tbl'),
+        html.Br(),
+        html.Div(['Перечень ГЦБ:']),
+        html.Br(),
+        dash_table.DataTable(columns=[{'name': i, 'id':i} for i in sht_cols], id='tbl-trades')
     ], style={'width':'50%', 'margin-left':'10%'})
 
 
@@ -97,25 +102,30 @@ def update_div(input_value,tradedate_v):
     Input('gcurve-tradedate', 'value'),
 )
 def update_trades_table(tradedate_v):
-    try:
-        day_t = parser.parse(tradedate_v)
-        trades = parse_trades( f"{day_t.day:02d}.{day_t.month:02d}.{day_t.year}",'gsecs', '#gsec_clean')
-        trades = trades.sort_values('Дни до погашения')
-        return trades.to_dict('records') 
-    except:
-        return 'Значине введено некорректно'
+    # try:
+    global trades
+    day_t = parser.parse(tradedate_v)
+    trades = parse_trades( f"{day_t.day:02d}.{day_t.month:02d}.{day_t.year}",'gsecs', '#gsec_clean')
+    bonds = trades[['Код', 'Цена последней сделки']].values 
+    
+    for kod, price in bonds:
+        b = Bond.find_bond(code=kod, bond_price=price, rep_date=day_t)
+        trades.loc[trades["Код"]==kod, ['Yield, %']] = round(b.get_ytm() * 100,2)
+    return trades.to_dict('records') 
+    # except:
+    #     return 'Значине введено некорректно'
 
-@app.callback(
-    Output('gcurve-tradedate', 'options'),
-    Input('submit-gc-update', 'n_clicks')
-)
-def update_gcurve(n_clicks):
-    print('update gcurve started...')
-    download_gcurve_params()
-    global df, params
-    df = create_df_from_params_vect()
-    params = get_df_with_params()
-    return [{'label': str(i), 'value': str(i)} for i in df['tradedate'].unique()]
+# @app.callback(
+#     Output('gcurve-tradedate', 'options'),
+#     Input('submit-gc-update', 'n_clicks')
+# )
+# def update_gcurve(n_clicks):
+#     print('update gcurve started...')
+#     download_gcurve_params()
+#     global df, params
+#     df = create_df_from_params_vect()
+#     params = get_df_with_params()
+#     return [{'label': str(i), 'value': str(i)} for i in df['tradedate'].unique()]
 
 
 if __name__=='__main__':
