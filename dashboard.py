@@ -1,12 +1,14 @@
 import math
 from dateutil import parser
+from datetime import datetime
 
 from dash import Dash, html, dcc, Input, Output, dash_table
 import plotly.express as px
 import pandas as pd
 
 from main import (create_df_from_params_vect, 
-                  get_df_with_params, parse_trades)
+                  get_df_with_params, parse_trades,
+                  get_trades_from_file)
 
 from bonds import Bond
 
@@ -24,6 +26,10 @@ sht_cols = ['tradedate',
         'Цена первой сделки', 'Цена последней сделки', 
         'Количество сделок', 'Объем, млн KZT', 
         'Средневзвеш. цена', 'Yield, %', 'Дни до погашения']
+
+sht_cols2 = ['tradedate', 'ticker', 'short_name', 'currency', 'high_price',
+       'low_price', 'open_price', 'close_price', 'volume', 'Yield, %',
+       'Duration, years']
 
 fig = px.line(df.iloc[0], x=df.drop('tradedate', axis=1).columns, 
                             y = df.drop('tradedate', axis=1).iloc[0].values,
@@ -45,10 +51,14 @@ app.layout = html.Div([
         html.Br(),
         dash_table.DataTable(columns=[{'name': i, 'id':i} for i in params.columns], id='tbl'),
         html.Br(),
-        html.Div(['Перечень ГЦБ:']),
+        html.Div(['Перечень ГЦБ из KASE:']),
         html.Br(),
-        dash_table.DataTable(columns=[{'name': i, 'id':i} for i in sht_cols], id='tbl-trades')
-    ], style={'width':'50%', 'margin-left':'10%'})
+        dash_table.DataTable(columns=[{'name': i, 'id': i} for i in sht_cols], id='tbl-trades'),
+        html.Br(),
+        html.Div(['Перечень ГЦБ из TN:']),
+        html.Br(),
+        dash_table.DataTable(columns=[{'name': i, 'id': i} for i in sht_cols2], id='tbl-trades2'),
+    ], style={'width': '50%', 'margin-left': '10%'})
 
 
 @app.callback(
@@ -103,17 +113,44 @@ def update_div(input_value,tradedate_v):
 )
 def update_trades_table(tradedate_v):
     # try:
-    global trades
+    # global trades
     day_t = parser.parse(tradedate_v)
     trades = parse_trades( f"{day_t.day:02d}.{day_t.month:02d}.{day_t.year}",'gsecs', '#gsec_clean')
-    bonds = trades[['Код', 'Цена последней сделки']].values 
+    bonds = trades[['Код', 'Цена последней сделки']].values
     
     for kod, price in bonds:
+        # print(kod, price)
         b = Bond.find_bond(code=kod, bond_price=price, rep_date=day_t)
-        trades.loc[trades["Код"]==kod, ['Yield, %']] = round(b.get_ytm() * 100,2)
+        if b is None:
+            continue
+        r = b.get_ytm()
+        trades.loc[trades["Код"]==kod, ['Yield, %']] = round(r * 100,2)
+        trades.loc[trades["Код"]==kod, ['Дни до погашения']] = int(b.get_duration(r, day_t))
+
     return trades.to_dict('records') 
     # except:
     #     return 'Значине введено некорректно'
+
+@app.callback(
+    Output('tbl-trades2', 'data'),
+    Input('gcurve-tradedate', 'value'),
+)
+def update_trades_table2(tradedate_v):
+    # try:
+    # global trades
+    day_t = parser.parse(tradedate_v)
+    trades = get_trades_from_file(datetime(day_t.year, day_t.month, day_t.day, 21,0,0))
+    bonds = trades[['ticker', 'close_price']].values
+
+    for kod, price in bonds:
+        b = Bond.find_bond(code=kod.split('.')[0], bond_price=price, rep_date=day_t)
+        if not b:
+            continue
+        r = b.get_ytm()
+        trades.loc[trades["ticker"]==kod, ['Yield, %']] = round(r* 100,2)
+        trades.loc[trades["ticker"]==kod, ['Duration, years']] = int(b.get_duration(r, day_t))
+    trades = trades.sort_values('Duration, years')
+    return trades.to_dict('records')
 
 # @app.callback(
 #     Output('gcurve-tradedate', 'options'),

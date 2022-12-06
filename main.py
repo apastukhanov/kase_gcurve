@@ -111,6 +111,7 @@ def parse_trades(tradedate, market='shares', price_filter=''):
     
     df = df.loc[df['Объем, млн KZT']>0]
     df["Yield, %"] = 0.0
+    df["Duration, years"] = 0.0
 
     sht_cols = ['tradedate', 
         'Код', 'Режим','Минимальная цена','Максимальная цена', 
@@ -119,11 +120,20 @@ def parse_trades(tradedate, market='shares', price_filter=''):
         'Средневзвеш. цена', 'Yield, %', 'Дни до погашения']
 
     df = df[sht_cols]
-    
     df = df.sort_values('Дни до погашения')
-    print(df.head())
-    df.to_csv(f'trades/{market}_{price_filter}_{tradedate}.csv', 
-              index=False, sep=';', encoding='cp1251')
+    df.to_csv(f'trades/{market}_{price_filter}_{tradedate}.csv',
+              index=False, sep=';', encoding='utf8')
+    return df
+
+
+def get_trades_from_file(tradedate: datetime):
+    df = pd.read_csv('trades/all_trades.csv')
+    df['tradedate'] = pd.to_datetime(df['tradedate'],
+                                     format='%Y-%m-%d %H:%M:%S')
+    df = df.loc[df['tradedate']==tradedate]
+    df["Yield, %"] = 0.0
+    df["Duration, years"] = 0.0
+    print(df.columns)
     return df
 
 
@@ -203,11 +213,14 @@ def parse_sec_info_html(content: str):
             .find_all(class_='info-table__row')]
     data_dict = {row[0]:row[1] for row in data}
     coupons = soup.find_all(class_='modal-content')[0]
-    columns =[[col.text.strip() for col in row.find_all('th')] 
+    columns =[[col.text.strip() for col in row.find_all('th')]
               for row in coupons.find('thead').find_all('tr')][0] 
     data = [{columns[i]:col.text.strip() 
              for i, col in enumerate(row.find_all('td'))} 
            for row in coupons.find('tbody').find_all('tr')]
+    print(data)
+    if len(data)<2:
+        return None
     coupons_df = pd.DataFrame(data)
     coupons_df["Дата начала купонной выплаты"] =  \
         pd.to_datetime(coupons_df["Дата начала купонной выплаты"].apply(
@@ -217,8 +230,7 @@ def parse_sec_info_html(content: str):
     coupons_df["Список ценных бумаг"] = data_dict["Список ценных бумаг:"]
     coupons_df["Валюта котирования"] = data_dict["Валюта котирования:"]
     coupons_df["ISIN"] = data_dict["ISIN:"]
-    # coupons_df["ISIN (144А)"] = data_dict["ISIN (144А):"]
-    coupons_df["Дата погашения"] = data_dict["Дата погашения:"]
+    # coupons_df["Дата погашения"] = data_dict["Дата погашения:"]
     coupons_df['freq'] = freq
     coupons_df['Ставка, % год.'] = coupons_df['Ставка, % год.'].str.replace(',','.').astype('float64')
     
@@ -231,9 +243,9 @@ def parse_sec_info_html(content: str):
 
 if __name__=='__main__':
     # download_gcurve_params()
-    # animate_gcurve()
-    # parse_trades('16.11.2022', 'gsecs', '#gsec_clean')
-    parse_sec_info('KZ_06_4410')
+    # # animate_gcurve()
+    # # parse_trades('16.11.2022', 'gsecs', '#gsec_clean')
+    # parse_sec_info('KZ_06_4410')
     # plot_gcurve(datetime(2022, 11, 16))
     # plot_gcurve_last()
     # parse_sec_info()
@@ -247,5 +259,6 @@ if __name__=='__main__':
     # tic = time.perf_counter()
     # print(create_df_from_params_vect().head())
     # toc = time.perf_counter()
-    # print(f'func speed is {toc-tic:0.4f} seconds')
+    # print(f'func speesd is {toc-tic:0.4f} seconds')
     # parse_trades_html()
+    print(get_trades_from_file(datetime(2022,12,1,21,0,0)))
