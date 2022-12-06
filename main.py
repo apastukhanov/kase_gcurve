@@ -19,7 +19,6 @@ import requests
 from config import HEADERS
 
 
-
 def download_gcurve_params()->None:
     URL = "https://kase.kz/ru/documents/curve"
     r = requests.get(URL)
@@ -66,13 +65,14 @@ def plot_gcurve(tradedate:datetime, flag_renew_plot=True)->None:
     values = list(map(get_gcurve_yield, tradedates, dur))
 
     plt_df = pd.DataFrame.from_dict({'duration':dur, 'yield': values})
-
+    
     if flag_renew_plot:
         plt.clf()
 
     g = sns.lineplot(data=plt_df, 
         x='duration', 
-        y='yield', legend='brief', label =f"{tradedate.day}-{tradedate.month}-{tradedate.year}").set(title=datetime.strftime(tradedate, "G-curve as for %d.%m.%Y"))
+        y='yield', legend='brief', 
+        label =f"{tradedate.day}-{tradedate.month}-{tradedate.year}").set(title=datetime.strftime(tradedate, "G-curve as for %d.%m.%Y"))
 
     plt.legend(loc='best')
 
@@ -128,10 +128,11 @@ def parse_trades(tradedate, market='shares', price_filter=''):
 
 
 def get_trades_from_file(tradedate: datetime):
-    df = pd.read_csv('trades/all_trades.csv')
+    df = pd.read_csv('trades/all_trades.csv', encoding='cp1251')
     df['tradedate'] = pd.to_datetime(df['tradedate'],
                                      format='%Y-%m-%d %H:%M:%S')
     df = df.loc[df['tradedate']==tradedate]
+    print(df.head())
     df["Yield, %"] = 0.0
     df["Duration, years"] = 0.0
     # print(df.columns)
@@ -210,9 +211,12 @@ def parse_trades_html(content: str = None):
 
 def parse_sec_info_html(content: str):
     soup = BeautifulSoup(content, features='lxml')
-    data = [[k.text.strip() for k in row.find_all(class_='info-table__cell')] 
-            for row in soup.find(class_='info-table')\
-            .find_all(class_='info-table__row')]
+    try:
+        data = [[k.text.strip() for k in row.find_all(class_='info-table__cell')] 
+                for row in soup.find(class_='info-table')\
+                .find_all(class_='info-table__row')]
+    except Exception as e:
+        return None
     data_dict = {row[0]:row[1] for row in data}
     coupons = soup.find_all(class_='modal-content')[0]
     columns =[[col.text.strip() for col in row.find_all('th')]
@@ -220,9 +224,10 @@ def parse_sec_info_html(content: str):
     data = [{columns[i]:col.text.strip() 
              for i, col in enumerate(row.find_all('td'))} 
            for row in coupons.find('tbody').find_all('tr')]
-    # print(data)
+
     if len(data)<2:
         return None
+
     coupons_df = pd.DataFrame(data)
     coupons_df["Дата начала купонной выплаты"] =  \
         pd.to_datetime(coupons_df["Дата начала купонной выплаты"].apply(
@@ -246,7 +251,7 @@ def parse_sec_info_html(content: str):
 if __name__=='__main__':
     # download_gcurve_params()
     # # animate_gcurve()
-    # # parse_trades('16.11.2022', 'gsecs', '#gsec_clean')
+    # parse_trades('05.12.2022', 'gsecs', '#gsec_clean')
     # parse_sec_info('KZ_06_4410')
     # plot_gcurve(datetime(2022, 11, 16))
     # plot_gcurve_last()
@@ -263,4 +268,5 @@ if __name__=='__main__':
     # toc = time.perf_counter()
     # print(f'func speesd is {toc-tic:0.4f} seconds')
     # parse_trades_html()
-    print(get_trades_from_file(datetime(2022,12,1,21,0,0)))
+    # print(get_trades_from_file(datetime(2022,12,1,21,0,0)))
+    plot_gcurve(datetime(2022,12,5))

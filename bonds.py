@@ -8,7 +8,7 @@ from scipy import optimize
 import pandas as pd
 import numpy as np
 
-from main import parse_sec_info, parse_trades
+from main import parse_trades, parse_sec_info
 
 
 @dataclass
@@ -18,6 +18,7 @@ class Bond:
     bond_price:float
     freq: float
     periods: List[datetime] 
+    mat_date: datetime = None
 
     def get_price(self, rate):
         total_coupons_pv = self.get_coupons_pv(rate)
@@ -56,32 +57,42 @@ class Bond:
         get_yield = lambda rate: self.get_price(rate) - self.bond_price
         return round(optimize.newton(get_yield, estimate),4)
     
+    def get_fix_days_before_mat(self, as_for_date:datetime):
+        if self.mat_date:
+            return (self.mat_date - as_for_date).days
+        return 9999
+    
     @classmethod
     def find_bond(cls, code: str,
                        bond_price:float, 
                        rep_date: datetime):
         bond_df = parse_sec_info(code)
+
         if bond_df is None:
             return None
 
         bond_df['Дата начала купонной выплаты'] = pd.to_datetime(bond_df['Дата начала купонной выплаты'],
                                                                  format='%d.%m.%Y')
+        if 'Дата погашения' in bond_df.columns:
+            bond_df['Дата погашения'] = bond_df["Дата погашения"].apply(lambda x: 
+                                                f"{x.split('.')[0]}.{x.split('.')[1]}.20{x.split('.')[2]}")
+            bond_df['Дата погашения'] = pd.to_datetime(bond_df['Дата погашения'],
+                                                                    format='%d.%m.%Y')
+            mat_date = bond_df['Дата погашения'].iloc[0] 
+        else:
+            mat_date = None
         # print(bond_df.head().columns, bond_df['ISIN'].values[0])
         coupon = bond_df['Ставка, % год.'].iloc[0]
         face_value = 100
         bond_price = bond_price 
         bond_df = bond_df.loc[bond_df['Дата начала купонной выплаты']>rep_date]
-        periods = bond_df['Дата начала купонной выплаты'].values 
+        periods = bond_df['Дата начала купонной выплаты'].values
         
         return Bond(face_value=face_value, bond_price=bond_price, 
-                    coupon=coupon, freq=1, periods=periods)
+                    coupon=coupon, freq=1, periods=periods, mat_date=mat_date)
 
 
-if __name__=="__main__":
-    # print(get_ytm(bond_price=95.05, face_value=100, coupon=5.75, years=2, freq=1))
-
-    # df = pd.read_csv('sec_info/KZ_06_4410.csv', parse_dates=True)
-    # df = parse_sec_info("KZ_06_4410")
+def test_ytm():
     df = parse_trades('02.12.2022', 'gsecs', '#gsec_clean')
     bonds = df.loc[df['Объем, млн KZT']>0][['Код', 'Цена последней сделки']].values
     
@@ -89,7 +100,16 @@ if __name__=="__main__":
     
         b = Bond.find_bond(code=kod, bond_price=price, rep_date=datetime(2022,12,2))
         y = b.get_ytm()
-        # print(kod, y, price, b.get_duration(y, datetime(2022,12,2)))
+        print(kod, y, price, b.get_duration(y, datetime(2022,12,2)))
+
+
+
+if __name__=="__main__":
+    # test_ytm()
+    # print(get_ytm(bond_price=95.05, face_value=100, coupon=5.75, years=2, freq=1))
+
+    # df = pd.read_csv('sec_info/KZ_06_4410.csv', parse_dates=True)
+    # df = parse_sec_info("KZ_06_4410")
 
     # df['Дата начала купонной выплаты'] = pd.to_datetime(df['Дата начала купонной выплаты'], format='%d.%m.%Y')
     # coupon = df['Ставка, % год.'].iloc[0]
@@ -110,3 +130,7 @@ if __name__=="__main__":
     #  'Код', 'Режим','Минимальная цена','Максимальная цена', 
     #  'Дни до погашения',  'Цена первой сделки', 'Цена последней сделки', 
     #  'Количество сделок', 'Объем, млн KZT', 'Средневзвеш. цена', 'Yield, %']
+    # plot_gcurve(datetime(2022,12,5))
+    b = Bond.find_bond('KZ_06_4410', bond_price=99.1417, rep_date=datetime(2022, 12, 6))
+    print(b.get_fix_days_before_mat(datetime(2022,12,2)))
+    # print(b.get_ytm())
