@@ -12,6 +12,7 @@ from matplotlib.animation import FuncAnimation
 import seaborn as sns
 
 import pandas as pd
+import numpy as np
 
 import requests
 
@@ -133,7 +134,7 @@ def get_trades_from_file(tradedate: datetime):
     df = df.loc[df['tradedate']==tradedate]
     df["Yield, %"] = 0.0
     df["Duration, years"] = 0.0
-    print(df.columns)
+    # print(df.columns)
     return df
 
 
@@ -176,7 +177,8 @@ def create_df_from_params() -> pd.DataFrame:
 
 def create_df_from_params_vect():
     params = get_df_with_params()
-    dur = [0.25, 0.5, 0.75, 1, 2, 3, 5, 10, 15, 20, 25, 30]
+    # dur = [0.25, 0.5, 0.75, 1, 2, 3, 5, 10, 15, 20, 25, 30]
+    dur = np.linspace(0.25, 30, 120)
     df = pd.DataFrame(columns=[f'{d}' for d in dur])
 
     def calc(row, m):
@@ -218,7 +220,7 @@ def parse_sec_info_html(content: str):
     data = [{columns[i]:col.text.strip() 
              for i, col in enumerate(row.find_all('td'))} 
            for row in coupons.find('tbody').find_all('tr')]
-    print(data)
+    # print(data)
     if len(data)<2:
         return None
     coupons_df = pd.DataFrame(data)
