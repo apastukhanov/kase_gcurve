@@ -73,6 +73,7 @@ class Bond:
 
         bond_df['Дата начала купонной выплаты'] = pd.to_datetime(bond_df['Дата начала купонной выплаты'],
                                                                  format='%d.%m.%Y')
+        # print(bond_df.columns)
         if 'Дата погашения' in bond_df.columns:
             bond_df['Дата погашения'] = bond_df["Дата погашения"].apply(lambda x: 
                                                 f"{x.split('.')[0]}.{x.split('.')[1]}.20{x.split('.')[2]}")
