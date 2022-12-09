@@ -16,7 +16,7 @@ from bonds import Bond
 from nelson_siegel_svensson.calibrate import calibrate_ns_ols
 
 
-from config import sht_cols, sht_cols2
+from config import sht_cols, sht_cols2, FILE_ENCODING
 
 
 app = Dash(__name__)
@@ -29,16 +29,6 @@ df = create_df_from_params_vect()
 params = get_df_with_params()
 day_t = df.iloc[0]['tradedate']
 # trades = parse_trades( f"{day_t.day}.{day_t.month}.{day_t.year}",'gsecs', '#gsec_clean')
-# fig = go.Figure()
-fig = px.line(df.iloc[0], x=df.drop('tradedate', axis=1).columns,
-              y=df.drop('tradedate', axis=1).iloc[0].values,
-              title=f'График G-curve по состоянию на {day_t.day}.{day_t.month}.{day_t.year}')
-
-# fig.add_trace(go.Scatter(x=df.drop('tradedate', axis=1).columns,
-#                          y=df.drop('tradedate', axis=1).iloc[0].values))
-
-fig.update_xaxes(title='duration')
-fig.update_yaxes(title='yield')
 
 app.layout = html.Div([
     dcc.Dropdown(options=[{'label': str(i), 'value': str(i)}
@@ -46,7 +36,7 @@ app.layout = html.Div([
                  id='gcurve-tradedate'),
     html.Br(),
     html.Button("Обновить Gcurve", id='submit-gc-update', n_clicks=0),
-    dcc.Graph(id='gcurve-fig', figure=fig),
+    dcc.Graph(id='gcurve-fig'),
     html.Div(["Дюрация: ", dcc.Input(id='gcurve-input',
                                      value='1.0',
                                      type='text')]),
@@ -94,18 +84,20 @@ app.layout = html.Div([
     Output('gcurve-fig', 'figure'),
     Input('gcurve-tradedate', 'value'),
 )
-def update_fig(tradedate_v):
+def update_fig(tradedate_v:str):
     if not tradedate_v:
-        return None
-    print('im here')
-    day_t = parser.parse(tradedate_v)
+        fig = px.line()
+        fig.update_xaxes(title='duration')
+        fig.update_yaxes(title='yield')
+        return fig
+    rep_dt = parser.parse(tradedate_v)
     tmp_df = df.loc[df['tradedate'] == tradedate_v]
     tmp_df = tmp_df.drop('tradedate', axis=1)
 
     fig = px.line(x=list(tmp_df.columns),
                   y=tmp_df.values[0],
                   title=f'График G-curve по состоянию на ' 
-                        f'{day_t.day:02d}.{day_t.month:02d}.{day_t.year}')
+                        f'{rep_dt.day:02d}.{rep_dt.month:02d}.{rep_dt.year}')
 
     fig.update_xaxes(title='Дней до погашения')
     fig.update_yaxes(title='yield')

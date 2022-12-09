@@ -98,7 +98,7 @@ def parse_trades(tradedate, market='shares', price_filter=''):
     s = requests.session()
     s.headers.update(HEADERS)
     r = s.post(url, data={'date': tradedate})
-    with open('output.html', 'w', encoding=FILE_ENCODING) as f:
+    with open('output.html', 'w', encoding='utf8') as f:
         f.write(r.text)
     df = parse_trades_html(r.text)
     if df.shape[0] < 1:
@@ -149,7 +149,7 @@ def parse_sec_info(isin: str):
         s = requests.session()
         s.headers.update(HEADERS)
         r = s.get(url)
-        with open(f'sec_info_html/sec_info_{isin}.html', 'w', encoding=FILE_ENCODING) as f:
+        with open(f'sec_info_html/sec_info_{isin}.html', 'w', encoding='utf8') as f:
             f.write(r.text)
         return parse_sec_info_html(r.text)
     return pd.read_csv(file_path)

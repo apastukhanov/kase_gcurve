@@ -101,7 +101,12 @@ def test_ytm():
     
         b = Bond.find_bond(code=kod, bond_price=price, rep_date=datetime(2022,12,2))
         y = b.get_ytm()
+        d = b.get_fix_days_before_mat(datetime(2022,12,2))
         print(kod, y, price, b.get_duration(y, datetime(2022,12,2)))
+        df.loc[df['Код']==kod,'Yield, %'] = y
+        df.loc[df['Код']==kod,'Дни до погашения'] = d
+    
+    df.to_clipboard()
 
 
 
@@ -135,3 +140,4 @@ if __name__=="__main__":
     b = Bond.find_bond('KZ_06_4410', bond_price=99.1417, rep_date=datetime(2022, 12, 6))
     print(b.get_fix_days_before_mat(datetime(2022,12,2)))
     # print(b.get_ytm())
+    test_ytm()
