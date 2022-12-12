@@ -118,15 +118,25 @@ def min_square(tau, target_y, T):
     return np.sum((y_t - target_y)**2)
 
 
-def find_yeild(y, t, tau0):
-    res = optimize.minimize(min_square, x0=tau0, args=(y, t))
+def find_yeild(y, t, tau0, tonia):
+    
+    def constr_func(x: float):
+        curve, betas = get_betas(x[0], y, t)
+        print(f"checking tau: {x}, b0={betas[0]}, b1={betas[1]}, b0+b1={round((betas[0]+betas[1])*10000)-round(tonia*10000)}, tonia={tonia}")
+        return round((betas[0] + betas[1])*10000) - round(tonia*10000)
+    
+    constr = (
+        {'type': 'eq', "fun": constr_func},
+    )
+    
+    res = optimize.minimize(min_square, x0=tau0, bounds = ((0.076, 5), ), args=(y, t), 
+                            constraints=constr)
     curve, betas = get_betas(res.x[0], y, t)
     return curve
     
 
-
 if __name__ == '__main__':
-    plot_gcurve(datetime(2022, 12, 7))
+    # plot_gcurve(datetime(2022, 12, 7))
     # dur = [0.25, 0.5, 0.75, 1, 2, 3, 5, 10, 15, 20, 25, 30]
     # ns = NelsonSiegelCurve(beta0=0.093, beta1=0.055, beta2=0.0, tau=1.2)
     # dur = np.array(dur)
@@ -138,12 +148,13 @@ if __name__ == '__main__':
     # r = 0.01
     # f1 = np.round(1/((1+r)**l), 4)
     # # print(f1)
-    t = np.array([0.0, 0.5, 1.0, 2.0, 3.0, 4.0, 5.0, 10.0, 15.0, 20.0, 25.0, 30.0])
-    y = np.array([0.01, 0.011, 0.013, 0.016, 0.019, 0.021, 0.026, 0.03, 0.035, 0.037, 0.038, 0.04])
-    curve, status = calibrate_ns_ols(t, y, tau0=1.0)
-    print(curve)
-    print(find_yeild(y,t, tau0=1.0))
+    # t = np.array([0.0, 0.5, 1.0, 2.0, 3.0, 4.0, 5.0, 10.0, 15.0, 20.0, 25.0, 30.0])
+    # y = np.array([0.01, 0.011, 0.013, 0.016, 0.019, 0.021, 0.026, 0.03, 0.035, 0.037, 0.038, 0.04])
+    # curve, status = calibrate_ns_ols(t, y, tau0=1.0)
+    # print(curve)
+    # print(find_yeild(y,t, tau0=1.0))
     # # NelsonSiegelCurve(beta0=0.042017393872432876, beta1=-0.031829031623813654, beta2=-0.02679731950812892, tau=1.7170972824332638)
     # Gcurve(b0=0.04201739390445989, b1=-0.031829031672107905, b2=-0.02679731926748868, tau=array([1.7170973]))
+    get_tonia()
 
     

@@ -70,9 +70,10 @@ class Bond:
 
         if bond_df is None:
             return None
-
-        bond_df['Дата начала купонной выплаты'] = pd.to_datetime(bond_df['Дата начала купонной выплаты'],
-                                                                 format='%d.%m.%Y')
+        
+        if 'Дата начала купонной выплаты' in bond_df.columns:
+            bond_df['Дата начала купонной выплаты'] = pd.to_datetime(bond_df['Дата начала купонной выплаты'],
+                                                                    format='%d.%m.%Y')
         # print(bond_df.columns)
         if 'Дата погашения' in bond_df.columns:
             bond_df['Дата погашения'] = bond_df["Дата погашения"].apply(lambda x: 
@@ -83,6 +84,9 @@ class Bond:
         else:
             mat_date = None
         # print(bond_df.head().columns, bond_df['ISIN'].values[0])
+        if not 'Ставка, % год.' in bond_df.columns:
+            return Bond(face_value=100, bond_price=bond_price, coupon=0, 
+                        freq=1, periods=None, mat_date=mat_date)
         coupon = bond_df['Ставка, % год.'].iloc[0]
         face_value = 100
         bond_price = bond_price 
@@ -107,6 +111,9 @@ def test_ytm():
         df.loc[df['Код']==kod,'Дни до погашения'] = d
     
     df.to_clipboard()
+
+
+
 
 
 

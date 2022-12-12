@@ -1,7 +1,7 @@
 from datetime import datetime
 import math
 import os
-from typing import List
+from typing import List, Dict
 
 from functools import partial
 
@@ -99,6 +99,7 @@ def parse_trades(tradedate, market='shares', price_filter=''):
     s.headers.update(HEADERS)
     r = s.post(url, data={'date': tradedate})
     with open('output.html', 'w', encoding='utf8') as f:
+        print(r.text.encode('cp1250'))
         f.write(r.text)
     df = parse_trades_html(r.text)
     if df.shape[0] < 1:
@@ -211,8 +212,7 @@ def parse_trades_html(content: str):
     #     print(content)
 
 
-def parse_sec_info_html(content: str):
-    soup = BeautifulSoup(content, features='lxml')
+def parse_sec_description(soup: BeautifulSoup) -> Dict:
     try:
         data = [[k.text.strip() for k in row.find_all(class_='info-table__cell')]
                 for row in soup.find(class_='info-table') \
@@ -220,8 +220,14 @@ def parse_sec_info_html(content: str):
     except Exception as e:
         return None
     data_dict = {row[0]: row[1] for row in data}
-    coupons = soup.find_all(class_='modal-content')[0]
+    return data_dict
+
+
+def parse_sec_coupons(soup: BeautifulSoup) -> List[Dict]:
     try:
+        coupons = soup.find_all(class_='modal-content')[0]
+        # print(f"{coupons=}")
+        # print(f"{coupons.find_all('tr')=}")
         columns = [[col.text.strip() for col in row.find_all('th')]
                    for row in coupons.find('thead').find_all('tr')][0]
     except Exception as e:
@@ -234,33 +240,66 @@ def parse_sec_info_html(content: str):
 
     if len(data) < 2:
         return None
+    
+    # print(data)
+    
+    return data
 
-    coupons_df = pd.DataFrame(data)
-    coupons_df["Дата начала купонной выплаты"] = \
-        pd.to_datetime(coupons_df["Дата начала купонной выплаты"].apply(
-            lambda x: f"{x.split('.')[0]}.{x.split('.')[1]}.20{x.split('.')[2]}"),
-            format="%d.%m.%Y")
-    freq = coupons_df["Дата начала купонной выплаты"].dt.year.value_counts().mean()
-    coupons_df["Список ценных бумаг"] = data_dict["Список ценных бумаг:"]
-    coupons_df["Валюта котирования"] = data_dict["Валюта котирования:"]
-    coupons_df["ISIN"] = data_dict["ISIN:"]
-    if "Дата погашения:" in data_dict.keys():
-        coupons_df["Дата погашения"] = data_dict["Дата погашения:"]
-    coupons_df['freq'] = freq
-    coupons_df['Ставка, % год.'] = coupons_df['Ставка, % год.'].str.replace(',', '.').astype('float64')
 
-    coupons_df.to_csv(f'sec_info/{data_dict["Код бумаги:"]}.csv',
-                      index=False,
-                      date_format="%d.%m.%Y")
+def get_tonia(td: datetime) -> float:
+    url = f'https://kase.kz/ru/money_market/repo-indicators/tonia/archive-xls/{td.strftime("%d.%m.%Y")}/{td.strftime("%d.%m.%Y")}'
+    df = pd.read_excel(url, skiprows=1)
+    return df['Закрытие'].values[0]
+    
 
-    return coupons_df
+def parse_sec_info_html(content: str):
+    soup = BeautifulSoup(content, features='lxml')
+    data_dict = parse_sec_description(soup)
+    data = parse_sec_coupons(soup)
+    
+    if data:
+        coupons_df = pd.DataFrame(data)
+        coupons_df["Дата начала купонной выплаты"] = \
+            pd.to_datetime(coupons_df["Дата начала купонной выплаты"].apply(
+                lambda x: f"{x.split('.')[0]}.{x.split('.')[1]}.20{x.split('.')[2]}"),
+                format="%d.%m.%Y")
+        freq = coupons_df["Дата начала купонной выплаты"].dt.year.value_counts().max()
+        coupons_df['freq'] = freq
+        coupons_df['Ставка, % год.'] = coupons_df['Ставка, % год.'] \
+                                                .str.replace(',', '.') \
+                                                .str.replace('–', '0').astype('float64')
+    
+    else: 
+        coupons_df = pd.DataFrame()
+        
+    if data_dict:
+        
+        if coupons_df.shape[0] < 1:
+            cleaned_dict = {k.replace(':',''): v for k,v in data_dict.items()}
+            coupons_df = pd.DataFrame([cleaned_dict])
+        else:
+            coupons_df["Список ценных бумаг"] = data_dict["Список ценных бумаг:"]
+            coupons_df["Валюта котирования"] = data_dict["Валюта котирования:"]
+            coupons_df["ISIN"] = data_dict["ISIN:"]
+
+            if "Дата погашения:" in data_dict.keys():
+                coupons_df["Дата погашения"] = data_dict["Дата погашения:"]
+
+    if coupons_df.shape[0] > 1:
+        # print(coupons_df)
+        coupons_df.to_csv(f'sec_info/{data_dict["Код бумаги:"]}.csv',
+                        index=False,
+                        date_format="%d.%m.%Y")
+
+        return coupons_df
+    return None
 
 
 if __name__ == '__main__':
-    download_gcurve_params()
+    # download_gcurve_params()
     # # animate_gcurve()
     # parse_trades('08.12.2022', 'gsecs', '#gsec_clean')
-    # parse_sec_info('KZ_06_4410')
+    print(parse_sec_info('NTK028_2816'))
     # plot_gcurve(datetime(2022, 11, 16))
     # plot_gcurve_last()
     # parse_sec_info()
@@ -279,3 +318,4 @@ if __name__ == '__main__':
     # print(get_trades_from_file(datetime(2022,12,1,21,0,0)))
     # plot_gcurve(datetime(2022, 12, 1))
     # print(FILE_ENCODING)
+    get_tonia(datetime(2022, 12, 9))

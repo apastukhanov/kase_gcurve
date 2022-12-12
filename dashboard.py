@@ -7,8 +7,8 @@ import plotly.express as px
 import plotly.graph_objects as go
 import pandas as pd
 
-from main import (create_df_from_params_vect,
-                  get_df_with_params, parse_trades,
+from main import (create_df_from_params_vect, download_gcurve_params, 
+                  get_df_with_params, parse_trades, get_tonia,
                   get_trades_from_file)
 
 from bonds import Bond
@@ -19,6 +19,7 @@ from nelson_siegel_svensson.calibrate import calibrate_ns_ols
 from config import sht_cols, sht_cols2, FILE_ENCODING
 
 from gcurve import find_yeild
+from parser_kase import get_parsed_df
 
 
 app = Dash(__name__)
@@ -185,20 +186,25 @@ def update_trades_table(tradedate_v):
     if not tradedate_v:
         return None
     day_t = parser.parse(tradedate_v)
-    trades = parse_trades(f"{day_t.day:02d}.{day_t.month:02d}.{day_t.year}", 'gsecs', '#gsec_clean')
+    # trades = parse_trades(f"{day_t.day:02d}.{day_t.month:02d}.{day_t.year}", 'gsecs', '#gsec_clean')
+    trades = get_parsed_df(day_t, is_gov=True)
+    trades['Дни до погашения'] = 0
+    trades['Yield, %'] = trades['Средневзв. доходность, % годовых']
+    print(trades.info())
     if trades.shape[0] < 1:
         return None
-    bonds = trades[['Код', 'Средневзвеш. цена']].values
+    bonds = trades[['Торговый код', 'Средневзв. доходность, % годовых']].values
 
     for kod, price in bonds:
         b = Bond.find_bond(code=kod, bond_price=price, rep_date=day_t)
         if b is None:
             continue
-        r = b.get_ytm()
-        trades.loc[trades["Код"] == kod, ['Yield, %']] = round(r * 100, 2)
-        # trades.loc[trades["Код"]==kod, ['Дни до погашения']] = int(b.get_duration(r, day_t))
+        # r = b.get_ytm()
+        # trades.loc[trades["Код"] == kod, ['Yield, %']] = round(r * 100, 2)
+        trades.loc[trades["Торговый код"]==kod, ['Дни до погашения']] = int(b.get_fix_days_before_mat(day_t))
 
-    return trades.to_dict('records')
+    return trades.loc[(trades['Дни до погашения']>8) & (trades['Дни до погашения']< 9999)] \
+            .sort_values('Дни до погашения').to_dict('records') #не учитываются сделки с ГЦБ, срок до погашения которых на дату заключения сделки составляет менее восьми календарных дней.
 
 
 @app.callback(
@@ -227,17 +233,18 @@ def update_trades_table2(tradedate_v):
     return trades.to_dict('records')
 
 
-# @app.callback(
-#     Output('gcurve-tradedate', 'options'),
-#     Input('submit-gc-update', 'n_clicks')
-# )
-# def update_gcurve(n_clicks):
-#     print('update gcurve started...')
-#     download_gcurve_params()
-#     global df, params
-#     df = create_df_from_params_vect()
-#     params = get_df_with_params()
-#     return [{'label': str(i), 'value': str(i)} for i in df['tradedate'].unique()]
+@app.callback(
+    Output('gcurve-tradedate', 'options'),
+    Input('submit-gc-update', 'n_clicks')
+)
+def update_gcurve(n_clicks):
+    if n_clicks == 1:
+        print(f'update gcurve started...{n_clicks}')
+        download_gcurve_params()
+        global df, params
+        df = create_df_from_params_vect()
+        params = get_df_with_params()
+    return [{'label': str(i), 'value': str(i)} for i in df['tradedate'].unique()]
 
 @app.callback(
     Output('gcurve-params-new1', 'data'),
@@ -249,18 +256,21 @@ def update_trades_table1(data):
         return None
     tradedate = df['tradedate'].iloc[0]
     df = df.loc[df['Yield, %'] > 0]
-    df = df.loc[df['Код'] != 'KZ_06_4410']
+    df = df.loc[df['Торговый код'] != 'KZ_06_4410']
     df = df.loc[df['Дни до погашения'] < 9999]
-    y = df['Yield, %'].values
+    y = df['Yield, %'].values /100
     t = df['Дни до погашения'].values / 365
-    curve = find_yeild(y=y, t=t, tau0=INL_TAU)
+    tonia = get_tonia(parser.parse(tradedate))/100
+    print(f'{tonia=}')
+    curve = find_yeild(y=y, t=t, tau0=INL_TAU, tonia=tonia)
     curve2, status = calibrate_ns_ols(t, y, INL_TAU)
     print(curve)
+    print(f'{curve.beta0+curve.beta1=}')
     print(curve2)
     return pd.DataFrame([{'tradedate': tradedate,
-                          'B0': f'{curve.beta0 / 100: .4f}',
-                          'B1': f'{curve.beta1 / 100: .4f}',
-                          'B2': f'{curve.beta2 / 100: .4f}',
+                          'B0': f'{curve.beta0 : .4f}',
+                          'B1': f'{curve.beta1 : .4f}',
+                          'B2': f'{curve.beta2 : .4f}',
                           'TAU': f'{curve.tau: .4f}'}]).to_dict('records')
 
 
