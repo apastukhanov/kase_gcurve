@@ -221,8 +221,13 @@ def parse_sec_info_html(content: str):
         return None
     data_dict = {row[0]: row[1] for row in data}
     coupons = soup.find_all(class_='modal-content')[0]
-    columns = [[col.text.strip() for col in row.find_all('th')]
-               for row in coupons.find('thead').find_all('tr')][0]
+    try:
+        columns = [[col.text.strip() for col in row.find_all('th')]
+                   for row in coupons.find('thead').find_all('tr')][0]
+    except Exception as e:
+        print(str(e))
+        return None
+
     data = [{columns[i]: col.text.strip()
              for i, col in enumerate(row.find_all('td'))}
             for row in coupons.find('tbody').find_all('tr')]
@@ -252,9 +257,9 @@ def parse_sec_info_html(content: str):
 
 
 if __name__ == '__main__':
-    # download_gcurve_params()
+    download_gcurve_params()
     # # animate_gcurve()
-    parse_trades('05.12.2022', 'gsecs', '#gsec_clean')
+    # parse_trades('08.12.2022', 'gsecs', '#gsec_clean')
     # parse_sec_info('KZ_06_4410')
     # plot_gcurve(datetime(2022, 11, 16))
     # plot_gcurve_last()

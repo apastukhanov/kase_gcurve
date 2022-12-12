@@ -18,6 +18,8 @@ from nelson_siegel_svensson.calibrate import calibrate_ns_ols
 
 from config import sht_cols, sht_cols2, FILE_ENCODING
 
+from gcurve import find_yeild
+
 
 app = Dash(__name__)
 
@@ -251,8 +253,10 @@ def update_trades_table1(data):
     df = df.loc[df['Дни до погашения'] < 9999]
     y = df['Yield, %'].values
     t = df['Дни до погашения'].values / 365
-    curve, status = calibrate_ns_ols(t, y, tau0=INL_TAU)
+    curve = find_yeild(y=y, t=t, tau0=INL_TAU)
+    curve2, status = calibrate_ns_ols(t, y, INL_TAU)
     print(curve)
+    print(curve2)
     return pd.DataFrame([{'tradedate': tradedate,
                           'B0': f'{curve.beta0 / 100: .4f}',
                           'B1': f'{curve.beta1 / 100: .4f}',

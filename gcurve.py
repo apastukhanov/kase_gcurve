@@ -23,13 +23,13 @@ EPS = np.finfo(float).eps
 
 @dataclass
 class Gcurve:
-    b0: float
-    b1: float
-    b2: float
+    beta0: float
+    beta1: float
+    beta2: float
     tau: float
     
     def get_factors(self, T: np.ndarray):    
-        tau =  self.tau
+        tau = self.tau
         zero_idx = T <= 0
         T[zero_idx] = EPS
         exp_tt0 = np.exp(-T / tau)
@@ -46,7 +46,7 @@ class Gcurve:
 
     def get_gcurve_points(self, T: np.ndarray):
         factor1, factor2 = self.get_factors(T)
-        return self.b0 + self.b1 * factor1 + self.b2 * factor2
+        return self.beta0 + self.beta1 * factor1 + self.beta2 * factor2
     
     def get_yield_t(self, T: np.ndarray):
         curve_points = self.get_gcurve_points(T)
@@ -107,7 +107,7 @@ def plot_gcurve(tradedate: datetime, flag_renew_plot=True) -> None:
 def get_betas(tau, target_y, T):
     curve = Gcurve(0,0,0,tau)
     m = curve.get_factors_matrix(T)
-    betas  = np.linalg.lstsq(m, target_y, rcond=None)[0]
+    betas = np.linalg.lstsq(m, target_y, rcond=None)[0]
     curve = Gcurve(betas[0], betas[1], betas[2], tau)
     return curve, betas
 
@@ -116,17 +116,17 @@ def min_square(tau, target_y, T):
     curve, betas = get_betas(tau, target_y, T)
     y_t = curve.get_yield_t(T)
     return np.sum((y_t - target_y)**2)
-    
 
-def find_yeild(y,t):
-    res = optimize.minimize(min_square, x0=1, bounds=((0.076, 5)), method='SLSQP',args=(y,t))
+
+def find_yeild(y, t, tau0):
+    res = optimize.minimize(min_square, x0=tau0, args=(y, t))
     curve, betas = get_betas(res.x[0], y, t)
     return curve
     
 
 
 if __name__ == '__main__':
-    # plot_gcurve(datetime(2022, 12, 1))
+    plot_gcurve(datetime(2022, 12, 7))
     # dur = [0.25, 0.5, 0.75, 1, 2, 3, 5, 10, 15, 20, 25, 30]
     # ns = NelsonSiegelCurve(beta0=0.093, beta1=0.055, beta2=0.0, tau=1.2)
     # dur = np.array(dur)
@@ -137,13 +137,13 @@ if __name__ == '__main__':
     # print(l)
     # r = 0.01
     # f1 = np.round(1/((1+r)**l), 4)
-    # print(f1)
+    # # print(f1)
     t = np.array([0.0, 0.5, 1.0, 2.0, 3.0, 4.0, 5.0, 10.0, 15.0, 20.0, 25.0, 30.0])
-    y = np.array([0.01, 0.011, 0.013, 0.016, 0.019, 0.021, 0.026, 0.03, 0.035, 0.037, 0.038, 0.04]) 
+    y = np.array([0.01, 0.011, 0.013, 0.016, 0.019, 0.021, 0.026, 0.03, 0.035, 0.037, 0.038, 0.04])
     curve, status = calibrate_ns_ols(t, y, tau0=1.0)
     print(curve)
-    print(find_yeild(y,t))
-    # NelsonSiegelCurve(beta0=0.042017393872432876, beta1=-0.031829031623813654, beta2=-0.02679731950812892, tau=1.7170972824332638)
+    print(find_yeild(y,t, tau0=1.0))
+    # # NelsonSiegelCurve(beta0=0.042017393872432876, beta1=-0.031829031623813654, beta2=-0.02679731950812892, tau=1.7170972824332638)
     # Gcurve(b0=0.04201739390445989, b1=-0.031829031672107905, b2=-0.02679731926748868, tau=array([1.7170973]))
 
     
