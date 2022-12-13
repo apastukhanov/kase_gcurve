@@ -168,7 +168,7 @@ def download_bonds(bonds: List[str]=None) -> None:
                 df_json = json.load(f) 
         df = make_df_from_json(df_json)
         # print(df)
-        print(ticker, df.shape)
+        # print(ticker, df.shape)
         if df.shape[0] !=0:
             all_df.append(df)
     return pd.concat(all_df, ignore_index=True)

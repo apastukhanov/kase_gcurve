@@ -265,6 +265,7 @@ def get_tonia(td: datetime) -> float:
     url = f'https://kase.kz/ru/money_market/repo-indicators/tonia/archive-xls/{td.strftime("%d.%m.%Y")}/{td.strftime("%d.%m.%Y")}'
     df = pd.read_excel(url, skiprows=1)
     print(df)
+    print(url)
     return df['Закрытие'].values[0]
     
 

@@ -122,7 +122,7 @@ def find_yeild(y, t, tau0, tonia):
     
     def constr_func(x: float):
         curve, betas = get_betas(x[0], y, t)
-        print(f"checking tau: {x}, b0={betas[0]}, b1={betas[1]}, b0+b1={round((betas[0]+betas[1])*10000)-round(tonia*10000)}, tonia={tonia}")
+        # print(f"checking tau: {x}, b0={betas[0]}, b1={betas[1]}, b0+b1={round((betas[0]+betas[1])*10000)-round(tonia*10000)}, tonia={tonia}")
         return round((betas[0] + betas[1])*10000) - round(tonia*10000)
     
     constr = (

@@ -120,7 +120,7 @@ def update_fig(tradedate_v:str, data: List[Dict], params1: Dict):
         #       - row["B2"] * math.exp(-m / row["TAU"])
         factor1 = np.exp(-dur / tau )
         yields = b0 + (b1+b2) * (tau/dur) * (1 - np.exp(- dur/ tau)) - b2 * np.exp(-dur/tau)
-        fig.add_trace(go.Scatter(x = dur, y = yields, name='Custom gcurve'))
+        fig.add_trace(go.Scatter(x = dur, y = yields, name='Rebuilt gcurve'))
 
     return fig
 
@@ -277,7 +277,7 @@ def update_trades_table1(data):
     y = df['Yield, %'].values /100
     t = df['Дни до погашения'].values / 365
     # df.to_clipboard()
-    tonia = get_tonia(parser.parse(tradedate))/100
+    tonia = get_tonia(parser.parse(tradedate, dayfirst=True))/100
     print(f'{tonia=}')
     curve = find_yeild(y=y, t=t, tau0=INL_TAU, tonia=tonia)
     curve2, status = calibrate_ns_ols(t, y, INL_TAU)
