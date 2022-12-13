@@ -1,11 +1,11 @@
 import math
 from dateutil import parser
-from datetime import datetime
+from typing import List, Dict
 
 from dash import Dash, html, dcc, Input, Output, dash_table
-import plotly.express as px
 import plotly.graph_objects as go
 import pandas as pd
+import numpy as np
 
 from main import (create_df_from_params_vect, download_gcurve_params, 
                   get_df_with_params, parse_trades, get_tonia,
@@ -86,24 +86,42 @@ app.layout = html.Div([
 @app.callback(
     Output('gcurve-fig', 'figure'),
     Input('gcurve-tradedate', 'value'),
+    Input('tbl-trades', 'data'),
+    Input('gcurve-params-new1', 'data'),
 )
-def update_fig(tradedate_v:str):
-    if not tradedate_v:
-        fig = px.line()
-        fig.update_xaxes(title='duration')
-        fig.update_yaxes(title='yield')
-        return fig
-    rep_dt = parser.parse(tradedate_v)
-    tmp_df = df.loc[df['tradedate'] == tradedate_v]
-    tmp_df = tmp_df.drop('tradedate', axis=1)
-
-    fig = px.line(x=list(tmp_df.columns),
-                  y=tmp_df.values[0],
-                  title=f'График G-curve по состоянию на ' 
-                        f'{rep_dt.day:02d}.{rep_dt.month:02d}.{rep_dt.year}')
-
-    fig.update_xaxes(title='Дней до погашения')
+def update_fig(tradedate_v:str, data: List[Dict], params1: Dict):
+    fig = go.Figure()
+    fig.update_xaxes(title='duration')
     fig.update_yaxes(title='yield')
+    if tradedate_v:
+        rep_dt = parser.parse(tradedate_v)
+        tmp_df = df.loc[df['tradedate'] == tradedate_v]
+        tmp_df = tmp_df.drop('tradedate', axis=1)
+
+        fig.add_trace(go.Scatter(x = [float(x) for x in list(tmp_df.columns)], y = tmp_df.values[0],
+                                 name='KASE gcurve'))
+        fig_title=f'График G-curve по состоянию на ' \
+                  f'{rep_dt.day:02d}.{rep_dt.month:02d}.{rep_dt.year}'
+        fig.update_layout(title=fig_title)
+    if data:
+        tbl1 = pd.DataFrame(data)
+        fig.add_trace(go.Scatter(x = [round(x,2) for x in  tbl1['Дни до погашения'] / 365],
+                                 y = tbl1['Yield, %']/100,
+                                 mode='markers',
+                                 marker_symbol = 'diamond',
+                                 name='trades'))
+    if params1:
+        params1 = params1[0]
+        b0, b1, b2, tau = float(params1["B0"]), float(params1["B1"]), \
+            float(params1["B2"]), float(params1["TAU"])
+        dur = np.linspace(0.25, 30, 120)
+        # res = row["B0"] \
+        #       + ((row["B1"] + row["B2"]) * (row["TAU"] / m) * (1 - math.exp(-m / row["TAU"]))) \
+        #       - row["B2"] * math.exp(-m / row["TAU"])
+        factor1 = np.exp(-dur / tau )
+        yields = b0 + (b1+b2) * (tau/dur) * (1 - np.exp(- dur/ tau)) - b2 * np.exp(-dur/tau)
+        fig.add_trace(go.Scatter(x = dur, y = yields, name='Custom gcurve'))
+
     return fig
 
 
@@ -131,8 +149,15 @@ def update_table(tradedate_v):
     Input('gcurve-tradedate', 'value'),
 )
 def update_div(input_value, tradedate_v):
-    return get_yield_from_gcurve(input_value, data)
-
+    try:
+        m = float(input_value)
+        row = params.loc[params['tradedate'] == tradedate_v]
+        res = row["B0"] \
+              + ((row["B1"] + row["B2"]) * (row["TAU"] / m) * (1 - math.exp(-m / row["TAU"]))) \
+              - row["B2"] * math.exp(-m / row["TAU"])
+        return f'Значение кривой для дюрации {input_value} лет: {res.values[0] * 100:.4f}%'
+    except:
+        return 'Значение введено некорректно'
 
 @app.callback(
     Output('gcurve-output2', 'children'),
