@@ -2,6 +2,7 @@ from datetime import datetime
 import math
 import os
 from typing import List, Dict
+from pathlib import Path
 
 from functools import partial
 
@@ -17,6 +18,9 @@ import numpy as np
 import requests
 
 from config import HEADERS, FILE_ENCODING
+
+from parser_kase import get_secids_on_date
+from api_tradernet import download_bonds
 
 
 def download_gcurve_params() -> None:
@@ -143,6 +147,17 @@ def get_trades_from_file(tradedate: datetime):
     return df
 
 
+def get_trades_from_tn_on_date(tradedate: datetime):
+    sec_ids = get_secids_on_date(tradedate=tradedate, is_gov=True)
+    df = download_bonds(sec_ids)
+    df = df.loc[(df['tradedate'].dt.year == tradedate.year) & 
+                (df['tradedate'].dt.month == tradedate.month) &
+                (df['tradedate'].dt.day == tradedate.day)]
+    # print(df.info())
+    # print(df.head())
+    return df
+    
+
 def parse_sec_info(isin: str):
     file_path = f"sec_info/{isin}.csv"
     if not os.path.exists(file_path):
@@ -249,6 +264,7 @@ def parse_sec_coupons(soup: BeautifulSoup) -> List[Dict]:
 def get_tonia(td: datetime) -> float:
     url = f'https://kase.kz/ru/money_market/repo-indicators/tonia/archive-xls/{td.strftime("%d.%m.%Y")}/{td.strftime("%d.%m.%Y")}'
     df = pd.read_excel(url, skiprows=1)
+    print(df)
     return df['Закрытие'].values[0]
     
 
@@ -299,7 +315,7 @@ if __name__ == '__main__':
     # download_gcurve_params()
     # # animate_gcurve()
     # parse_trades('08.12.2022', 'gsecs', '#gsec_clean')
-    print(parse_sec_info('NTK028_2816'))
+    # print(parse_sec_info('NTK028_2816'))
     # plot_gcurve(datetime(2022, 11, 16))
     # plot_gcurve_last()
     # parse_sec_info()
@@ -318,4 +334,5 @@ if __name__ == '__main__':
     # print(get_trades_from_file(datetime(2022,12,1,21,0,0)))
     # plot_gcurve(datetime(2022, 12, 1))
     # print(FILE_ENCODING)
-    get_tonia(datetime(2022, 12, 9))
+    # get_tonia(datetime(2022, 12, 9))
+    get_trades_from_tn_on_date(datetime(2022,12,7))

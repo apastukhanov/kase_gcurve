@@ -9,7 +9,7 @@ import pandas as pd
 
 from main import (create_df_from_params_vect, download_gcurve_params, 
                   get_df_with_params, parse_trades, get_tonia,
-                  get_trades_from_file)
+                  get_trades_from_file, get_trades_from_tn_on_date)
 
 from bonds import Bond
 
@@ -131,15 +131,7 @@ def update_table(tradedate_v):
     Input('gcurve-tradedate', 'value'),
 )
 def update_div(input_value, tradedate_v):
-    try:
-        m = float(input_value)
-        row = params.loc[params['tradedate'] == tradedate_v]
-        res = row["B0"] \
-              + ((row["B1"] + row["B2"]) * (row["TAU"] / m) * (1 - math.exp(-m / row["TAU"]))) \
-              - row["B2"] * math.exp(-m / row["TAU"])
-        return f'Значение кривой для дюрации {input_value} лет: {res.values[0] * 100:.4f}%'
-    except:
-        return 'Значение введено некорректно'
+    return get_yield_from_gcurve(input_value, data)
 
 
 @app.callback(
@@ -148,16 +140,7 @@ def update_div(input_value, tradedate_v):
     Input('gcurve-params-new1', 'data'),
 )
 def update_div2(input_value, data):
-    try:
-        m = float(input_value)
-        row = pd.DataFrame(data)
-        row[['B0', 'B1', 'B2', 'TAU']] = row[['B0', 'B1', 'B2', 'TAU']].astype('float64')
-        res = row["B0"] \
-              + ((row["B1"] + row["B2"]) * (row["TAU"] / m) * (1 - math.exp(-m / row["TAU"]))) \
-              - row["B2"] * math.exp(-m / row["TAU"])
-        return f'Значение кривой для дюрации {input_value} лет: {res.values[0] * 100:.4f}%'
-    except:
-        return 'Значение введено некорректно'
+    return get_yield_from_gcurve(input_value, data)
 
 
 @app.callback(
@@ -166,6 +149,10 @@ def update_div2(input_value, data):
     Input('gcurve-params-new2', 'data'),
 )
 def update_div3(input_value, data):
+    return get_yield_from_gcurve(input_value, data)
+
+
+def get_yield_from_gcurve(input_value, data):
     try:
         m = float(input_value)
         row = pd.DataFrame(data)
@@ -190,10 +177,12 @@ def update_trades_table(tradedate_v):
     trades = get_parsed_df(day_t, is_gov=True)
     trades['Дни до погашения'] = 0
     trades['Yield, %'] = trades['Средневзв. доходность, % годовых']
-    print(trades.info())
+    trades['tradedate'] = trades['tradedate'].dt.strftime('%d.%m.%Y')
+    # print(trades.info())
     if trades.shape[0] < 1:
         return None
     bonds = trades[['Торговый код', 'Средневзв. доходность, % годовых']].values
+
 
     for kod, price in bonds:
         b = Bond.find_bond(code=kod, bond_price=price, rep_date=day_t)
@@ -215,7 +204,8 @@ def update_trades_table2(tradedate_v):
     if not tradedate_v:
         return None
     day_t = parser.parse(tradedate_v)
-    trades = get_trades_from_file(datetime(day_t.year, day_t.month, day_t.day, 21, 0, 0))
+    # trades = get_trades_from_file(datetime(day_t.year, day_t.month, day_t.day, 21, 0, 0))
+    trades = get_trades_from_tn_on_date(day_t)
     trades['tradedate'] = trades['tradedate'].dt.strftime('%d.%m.%Y')
     bonds = trades[['ticker', 'close_price']].values
 
@@ -255,11 +245,13 @@ def update_trades_table1(data):
     if df.shape[0] < 1:
         return None
     tradedate = df['tradedate'].iloc[0]
+    print(tradedate)
     df = df.loc[df['Yield, %'] > 0]
     df = df.loc[df['Торговый код'] != 'KZ_06_4410']
     df = df.loc[df['Дни до погашения'] < 9999]
     y = df['Yield, %'].values /100
     t = df['Дни до погашения'].values / 365
+    # df.to_clipboard()
     tonia = get_tonia(parser.parse(tradedate))/100
     print(f'{tonia=}')
     curve = find_yeild(y=y, t=t, tau0=INL_TAU, tonia=tonia)
@@ -298,4 +290,4 @@ def update_trades_table2(data):
 
 
 if __name__ == '__main__':
-    app.run_server(debug=True, port=8090)
+    app.run_server(debug=True)

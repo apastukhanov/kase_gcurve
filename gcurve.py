@@ -137,12 +137,12 @@ def find_yeild(y, t, tau0, tonia):
 
 if __name__ == '__main__':
     # plot_gcurve(datetime(2022, 12, 7))
-    # dur = [0.25, 0.5, 0.75, 1, 2, 3, 5, 10, 15, 20, 25, 30]
-    # ns = NelsonSiegelCurve(beta0=0.093, beta1=0.055, beta2=0.0, tau=1.2)
-    # dur = np.array(dur)
-    # print(ns.factors(dur)[0])
-    # print(ns.factors(dur)[1])
-    # print(np.exp(-dur/ns.tau))
+    dur = [0.25, 0.5, 0.75, 1, 2, 3, 5, 10, 15, 20, 25, 30]
+    ns = NelsonSiegelCurve(beta0=0.093, beta1=0.055, beta2=0.0, tau=1.2)
+    dur = np.array(dur)
+    print(ns.factors(dur)[0])
+    print(ns.factors(dur)[1])
+    print(np.exp(-dur/ns.tau))
     # l = np.arange(1,11)
     # print(l)
     # r = 0.01
@@ -155,6 +155,5 @@ if __name__ == '__main__':
     # print(find_yeild(y,t, tau0=1.0))
     # # NelsonSiegelCurve(beta0=0.042017393872432876, beta1=-0.031829031623813654, beta2=-0.02679731950812892, tau=1.7170972824332638)
     # Gcurve(b0=0.04201739390445989, b1=-0.031829031672107905, b2=-0.02679731926748868, tau=array([1.7170973]))
-    get_tonia()
 
     
