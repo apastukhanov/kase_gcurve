@@ -88,8 +88,10 @@ app.layout = html.Div([
     Input('gcurve-tradedate', 'value'),
     Input('tbl-trades', 'data'),
     Input('gcurve-params-new1', 'data'),
+    Input('gcurve-params-new2', 'data'),
 )
-def update_fig(tradedate_v:str, data: List[Dict], params1: Dict):
+def update_fig(tradedate_v:str, data: List[Dict], 
+               params1: Dict, params2: Dict):
     fig = go.Figure()
     fig.update_xaxes(title='duration')
     fig.update_yaxes(title='yield')
@@ -115,12 +117,15 @@ def update_fig(tradedate_v:str, data: List[Dict], params1: Dict):
         b0, b1, b2, tau = float(params1["B0"]), float(params1["B1"]), \
             float(params1["B2"]), float(params1["TAU"])
         dur = np.linspace(0.25, 30, 120)
-        # res = row["B0"] \
-        #       + ((row["B1"] + row["B2"]) * (row["TAU"] / m) * (1 - math.exp(-m / row["TAU"]))) \
-        #       - row["B2"] * math.exp(-m / row["TAU"])
-        factor1 = np.exp(-dur / tau )
         yields = b0 + (b1+b2) * (tau/dur) * (1 - np.exp(- dur/ tau)) - b2 * np.exp(-dur/tau)
-        fig.add_trace(go.Scatter(x = dur, y = yields, name='Rebuilt gcurve'))
+        fig.add_trace(go.Scatter(x = dur, y = yields, name='Rebuilt gcurve (KASE trades)'))
+    if params2:
+        params2 = params2[0]
+        b0, b1, b2, tau = float(params2["B0"]), float(params2["B1"]), \
+            float(params2["B2"]), float(params2["TAU"])
+        dur = np.linspace(0.25, 30, 120)
+        yields = b0 + (b1+b2) * (tau/dur) * (1 - np.exp(- dur/ tau)) - b2 * np.exp(-dur/tau)
+        fig.add_trace(go.Scatter(x = dur, y = yields, name='Rebuilt gcurve (TN trades)'))
 
     return fig
 
@@ -270,7 +275,7 @@ def update_trades_table1(data):
     if df.shape[0] < 1:
         return None
     tradedate = df['tradedate'].iloc[0]
-    print(tradedate)
+    # print(tradedate)
     df = df.loc[df['Yield, %'] > 0]
     df = df.loc[df['Торговый код'] != 'KZ_06_4410']
     df = df.loc[df['Дни до погашения'] < 9999]
@@ -278,7 +283,7 @@ def update_trades_table1(data):
     t = df['Дни до погашения'].values / 365
     # df.to_clipboard()
     tonia = get_tonia(parser.parse(tradedate, dayfirst=True))/100
-    print(f'{tonia=}')
+    # print(f'{tonia=}')
     curve = find_yeild(y=y, t=t, tau0=INL_TAU, tonia=tonia)
     curve2, status = calibrate_ns_ols(t, y, INL_TAU)
     print(curve)
@@ -306,7 +311,7 @@ def update_trades_table2(data):
     y = df['Yield, %'].values
     t = df['Duration, years'].values / 365
     curve, status = calibrate_ns_ols(t, y, tau0=INL_TAU)
-    print(curve)
+    # print(curve)
     return pd.DataFrame([{'tradedate': tradedate,
                           'B0': f'{curve.beta0 / 100: .4f}',
                           'B1': f'{curve.beta1 / 100: .4f}',

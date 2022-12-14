@@ -291,25 +291,30 @@ def parse_sec_info_html(content: str):
         
     if data_dict:
         
+        cleaned_dict = {k.replace(':',''): v for k,v in data_dict.items()}
+
         if coupons_df.shape[0] < 1:
-            cleaned_dict = {k.replace(':',''): v for k,v in data_dict.items()}
             coupons_df = pd.DataFrame([cleaned_dict])
         else:
-            coupons_df["Список ценных бумаг"] = data_dict["Список ценных бумаг:"]
-            coupons_df["Валюта котирования"] = data_dict["Валюта котирования:"]
-            coupons_df["ISIN"] = data_dict["ISIN:"]
+            print(cleaned_dict)
+            for k, v in cleaned_dict.items():
+                coupons_df[k] = v
+            # coupons_df["Список ценных бумаг"] = data_dict["Список ценных бумаг:"]
+            # coupons_df["Валюта котирования"] = data_dict["Валюта котирования:"]
+            # coupons_df["ISIN"] = data_dict["ISIN:"]
 
-            if "Дата погашения:" in data_dict.keys():
-                coupons_df["Дата погашения"] = data_dict["Дата погашения:"]
+            # coupons_df["Дата погашения"] = data_dict["Дата погашения:"]
+            if "Дата погашения:" in data_dict.keys() and \
+                not 'Дата начала купонной выплаты' in coupons_df.columns: 
+                    coupons_df['Дата начала купонной выплаты'] = data_dict["Дата погашения:"]
 
-    if coupons_df.shape[0] > 1:
+    if coupons_df.shape[0] > 0:
         # print(coupons_df)
         coupons_df.to_csv(f'sec_info/{data_dict["Код бумаги:"]}.csv',
                         index=False,
                         date_format="%d.%m.%Y")
 
-        return coupons_df
-    return None
+    return coupons_df
 
 
 if __name__ == '__main__':
