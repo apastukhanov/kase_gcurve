@@ -20,7 +20,9 @@ import requests
 from config import HEADERS, FILE_ENCODING
 
 from parser_kase import get_secids_on_date
-from api_tradernet import download_bonds
+from api_tradernet import ( download_bonds, 
+                            get_trade_hist, 
+                            make_df_from_json)
 
 
 def download_gcurve_params() -> None:
@@ -149,12 +151,31 @@ def get_trades_from_file(tradedate: datetime):
 
 def get_trades_from_tn_on_date(tradedate: datetime):
     sec_ids = get_secids_on_date(tradedate=tradedate, is_gov=True)
-    df = download_bonds(sec_ids)
-    df = df.loc[(df['tradedate'].dt.year == tradedate.year) & 
-                (df['tradedate'].dt.month == tradedate.month) &
-                (df['tradedate'].dt.day == tradedate.day)]
+    f = datetime(2018, 1, 1)
+    # df = download_bonds(sec_ids)
+    j = get_trade_hist(ticker=",".join([s +'.KZ' for s in sec_ids]), 
+                       from_=f, to_=tradedate, timeframe=1)
+    df = make_df_from_json(j)
+    
+    def wapr(group):
+    # print(group)
+        group = group.sort_values('tradedate', ascending = False)[:10]
+        pr = group['close_price']
+        v = group['volume']
+        wapr = (pr * v).sum() / v.sum()
+        group['close_price']= round(wapr,2)
+        group['tradedate'] = tradedate
+        return group[['tradedate', 'short_name', 'currency', 'close_price']][:1]
+
+    df = df.groupby('ticker').apply(wapr).droplevel(1).reset_index()
+
+    # df = df.loc[(df['tradedate'].dt.year <= tradedate.year) & 
+    #             (df['tradedate'].dt.month <= tradedate.month) &
+    #             (df['tradedate'].dt.day <= tradedate.day)]
     # print(df.info())
     # print(df.head())
+    df["Yield, %"] = 0.0
+    df["Duration, days"] = 0.0
     return df
     
 
@@ -273,6 +294,9 @@ def parse_sec_info_html(content: str):
     soup = BeautifulSoup(content, features='lxml')
     data_dict = parse_sec_description(soup)
     data = parse_sec_coupons(soup)
+    
+    print(f"{data=}")
+    print(f"{data_dict=}")
     
     if data:
         coupons_df = pd.DataFrame(data)

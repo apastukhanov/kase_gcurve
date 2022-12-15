@@ -51,8 +51,6 @@ class Gcurve:
     def get_yield_t(self, T: np.ndarray):
         curve_points = self.get_gcurve_points(T)
         return 100 * (np.exp(curve_points/100)-1)
-    
-      
 
 
 def find_gcurve_params(t, y):
@@ -103,7 +101,6 @@ def plot_gcurve(tradedate: datetime, flag_renew_plot=True) -> None:
     plt.show()
 
 
-
 def get_betas(tau, target_y, T):
     curve = Gcurve(0,0,0,tau)
     m = curve.get_factors_matrix(T)
@@ -133,7 +130,7 @@ def find_yeild(y, t, tau0, tonia):
                             constraints=constr)
     curve, betas = get_betas(res.x[0], y, t)
     return curve
-    
+
 
 if __name__ == '__main__':
     # plot_gcurve(datetime(2022, 12, 7))

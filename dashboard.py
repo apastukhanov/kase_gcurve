@@ -246,10 +246,11 @@ def update_trades_table2(tradedate_v):
         b = Bond.find_bond(code=kod.split('.')[0], bond_price=price, rep_date=day_t)
         if not b:
             continue
+        print("Bond for valuation:", b)
         r = b.get_ytm()
         trades.loc[trades["ticker"] == kod, ['Yield, %']] = round(r * 100, 2)
-        trades.loc[trades["ticker"] == kod, ['Duration, years']] = int(b.get_fix_days_before_mat(day_t))
-    trades = trades.sort_values('Duration, years')
+        trades.loc[trades["ticker"] == kod, ['Duration, days']] = int(b.get_fix_days_before_mat(day_t))
+    trades = trades.sort_values('Duration, days')
     return trades.to_dict('records')
 
 
@@ -307,11 +308,11 @@ def update_trades_table2(data):
     tradedate = df['tradedate'].iloc[0]
     df = df.loc[df['Yield, %'] > 0]
     df = df.loc[df['currency'] == 'KZT']
-    df = df.loc[df['Duration, years'] < 9999]
+    df = df.loc[df['Duration, days'] < 9999]
     y = df['Yield, %'].values
-    t = df['Duration, years'].values / 365
+    t = df['Duration, days'].values / 365
     curve, status = calibrate_ns_ols(t, y, tau0=INL_TAU)
-    # print(curve)
+    print(curve)
     return pd.DataFrame([{'tradedate': tradedate,
                           'B0': f'{curve.beta0 / 100: .4f}',
                           'B1': f'{curve.beta1 / 100: .4f}',

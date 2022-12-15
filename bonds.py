@@ -100,6 +100,12 @@ class Bond:
             if  bond_df['Дата начала купонной выплаты'].iloc[-1] is None \
                 and bond_df['Дата начала купонной выплаты'].count() < 2:
                     bond_df['Дата начала купонной выплаты'] = mat_date 
+        elif 'Период погашения' in bond_df.columns:
+            bond_df['Период погашения'] = bond_df["Период погашения"].apply(lambda x: 
+                                                f"{x.split('.')[0]}.{x.split('.')[1]}.20{x.split('.')[2]}")
+            bond_df['Период погашения'] = pd.to_datetime(bond_df['Период погашения'],
+                                                                    format='%d.%m.%Y')
+            mat_date = bond_df['Период погашения'].iloc[0] 
         else:
             mat_date = None
         # print(bond_df.head().columns, bond_df['ISIN'].values[0])
@@ -179,7 +185,7 @@ if __name__=="__main__":
     #  'Дни до погашения',  'Цена первой сделки', 'Цена последней сделки', 
     #  'Количество сделок', 'Объем, млн KZT', 'Средневзвеш. цена', 'Yield, %']
     # plot_gcurve(datetime(2022,12,5))
-    b = Bond.find_bond('MUM180_0001', bond_price=94.3432, rep_date=datetime(2022, 12, 9))
+    b = Bond.find_bond('MOM048_0054', bond_price=105.8757, rep_date=datetime(2022, 12, 8))
     print(b)
     print(b.get_ytm())
     print(b.get_fix_days_before_mat(datetime(2022,12,9)))

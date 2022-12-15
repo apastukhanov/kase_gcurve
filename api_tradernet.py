@@ -58,8 +58,9 @@ def get_trade_hist(ticker, from_, to_, timeframe=1440):
         'date_to'      : datetime.strftime(to_, "%d.%m.%Y %H:%M"),
         'intervalMode' : 'ClosedRay'
     }
-    
-    return mk_request(cmd_, params_, filename=f'trades/{ticker}', isV1=True)
+    print(params_)
+    ticker_name = 'securities_trades' if len(ticker) > 20 else ticker  
+    return mk_request(cmd_, params_, filename=f'trades/{ticker_name}', isV1=True)
      
 
 def get_session_info()->None:
@@ -162,13 +163,13 @@ def download_bonds(bonds: List[str]=None) -> None:
             print(f'downloading {bond} from Tradernet')
             df_json = get_trade_hist(ticker,
                         from_=datetime(2019, 1, 1),
-                        to_=datetime(2022, 12, 31), timeframe=1440)
+                        to_=datetime(2022, 12, 31), timeframe=1)
         else:
             with open(path_trades, 'r', encoding='utf8') as f:
                 df_json = json.load(f) 
         df = make_df_from_json(df_json)
         # print(df)
-        # print(ticker, df.shape)
+        print(ticker, df.shape)
         if df.shape[0] !=0:
             all_df.append(df)
     return pd.concat(all_df, ignore_index=True)
