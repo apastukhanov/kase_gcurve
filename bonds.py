@@ -45,11 +45,11 @@ class Bond:
     
     def get_coupons_pv(self, rate):
         as_for_date = self.as_for_date
-        period_dist = np.array([(period - np.datetime64(as_for_date) 
-                                 ).astype('timedelta64[D]') / np.timedelta64(1, 'D')
-                                for period in self.periods])
-        # cash_flow = [self.coupon/(1+rate/self.freq)**period for period, _ in enumerate(self.periods, start=1) ]
-        cash_flow = self.coupon/ (1 + rate/ self.freq) ** (period_dist/365) 
+        # period_dist = np.array([(period - np.datetime64(as_for_date) 
+        #                          ).astype('timedelta64[D]') / np.timedelta64(1, 'D')
+        #                         for period in self.periods])
+        cash_flow = np.array([self.coupon/(1+rate/self.freq)**period for period, _ in enumerate(self.periods, start=1) ])
+        # cash_flow = self.coupon/ (1 + rate/ self.freq) ** (period_dist/365) 
         # rates_l = [period for period, _ in enumerate(self.periods, start=1) ]
         # print(f'{rates_l=}')
         # print(f'{sum(cash_flow)=}')
@@ -60,7 +60,10 @@ class Bond:
         rep_date = np.datetime64(self.as_for_date)
         mat_date = np.datetime64(self.mat_date)
         # if not self.mat_date:
-        fvpv = self.face_value / (1+rate/self.freq)**(((mat_date - rep_date) / np.timedelta64(1, 'D'))/365)
+        if periods < 2:
+            fvpv = self.face_value / (1+rate/self.freq)**(((mat_date - rep_date) / np.timedelta64(1, 'D'))/365)
+        else:
+            fvpv = self.face_value / ((1 + rate/self.freq) ** periods)
     # print(f'{fvpv=}')
         return fvpv
         # print("no mat date=", self)

@@ -9,7 +9,7 @@ import numpy as np
 
 from main import (create_df_from_params_vect, download_gcurve_params, 
                   get_df_with_params, parse_trades, get_tonia,
-                  get_trades_from_file, get_trades_from_tn_on_date)
+                  get_trades_from_file, get_trades_from_tn_on_date_adv)
 
 from bonds import Bond
 
@@ -86,7 +86,7 @@ app.layout = html.Div([
 @app.callback(
     Output('gcurve-fig', 'figure'),
     Input('gcurve-tradedate', 'value'),
-    Input('tbl-trades', 'data'),
+    Input('tbl-trades2', 'data'),
     Input('gcurve-params-new1', 'data'),
     Input('gcurve-params-new2', 'data'),
 )
@@ -107,7 +107,7 @@ def update_fig(tradedate_v:str, data: List[Dict],
         fig.update_layout(title=fig_title)
     if data:
         tbl1 = pd.DataFrame(data)
-        fig.add_trace(go.Scatter(x = [round(x,2) for x in  tbl1['Дни до погашения'] / 365],
+        fig.add_trace(go.Scatter(x = [round(x,2) for x in  tbl1['Duration, days'] / 365],
                                  y = tbl1['Yield, %']/100,
                                  mode='markers',
                                  marker_symbol = 'diamond',
@@ -235,22 +235,25 @@ def update_trades_table2(tradedate_v):
         return None
     day_t = parser.parse(tradedate_v)
     # trades = get_trades_from_file(datetime(day_t.year, day_t.month, day_t.day, 21, 0, 0))
-    trades = get_trades_from_tn_on_date(day_t)
-    trades['tradedate'] = trades['tradedate'].dt.strftime('%d.%m.%Y')
-    bonds = trades[['ticker', 'close_price']].values
+    trades = get_trades_from_tn_on_date_adv(day_t)
+    trades = prepare_df_for_calculations(trades, day_t)
+    trades['tradedate'] = day_t.strftime('%d.%m.%Y')
+    trades.rename({'wapr':'Yield, %'}, axis=1, inplace=True)
+    bonds = trades[['ticker', 'Yield, %']].values
 
-    if trades.shape[0] < 1:
-        return trades.to_dict('records')
+    # if trades.shape[0] < 1:
+    #     return trades.to_dict('records')
 
     for kod, price in bonds:
         b = Bond.find_bond(code=kod.split('.')[0], bond_price=price, rep_date=day_t)
         if not b:
             continue
-        print("Bond for valuation:", b)
-        r = b.get_ytm()
-        trades.loc[trades["ticker"] == kod, ['Yield, %']] = round(r * 100, 2)
+    #     print("Bond for valuation:", b)
+    #     r = b.get_ytm()
+    #     trades.loc[trades["ticker"] == kod, ['Yield, %']] = round(r * 100, 2)
         trades.loc[trades["ticker"] == kod, ['Duration, days']] = int(b.get_fix_days_before_mat(day_t))
-    trades = trades.sort_values('Duration, days')
+    trades = trades.loc[(trades['Duration, days'] > 8) & 
+                         (trades['Duration, days'] < 9999)].sort_values('Duration, days')
     return trades.to_dict('records')
 
 
@@ -311,6 +314,10 @@ def update_trades_table2(data):
     df = df.loc[df['Duration, days'] < 9999]
     y = df['Yield, %'].values
     t = df['Duration, days'].values / 365
+    wi = df['sum_wi'].values
+    tonia = get_tonia(parser.parse(tradedate, dayfirst=True))/100
+    # print(f'{tonia=}')
+    curve = find_yeild(y=y, t=t, tau0=INL_TAU, tonia=tonia, wi=wi)
     curve, status = calibrate_ns_ols(t, y, tau0=INL_TAU)
     print(curve)
     return pd.DataFrame([{'tradedate': tradedate,
@@ -318,6 +325,63 @@ def update_trades_table2(data):
                           'B1': f'{curve.beta1 / 100: .4f}',
                           'B2': f'{curve.beta2 / 100: .4f}',
                           'TAU': f'{curve.tau: .4f}'}]).to_dict('records')
+
+
+def prepare_df_for_calculations(df: pd.DataFrame, rep_date) -> pd.DataFrame:
+    def prepare_trades_sample(group):
+        group = group.sort_values('tradedate', ascending = False)[:10]
+        bonds = group[['tradedate', 'ticker', 'close_price']].values
+        for day_t, kod, price in bonds:
+            b = Bond.find_bond(code=kod.split('.')[0], bond_price = price, rep_date = day_t)
+            if not b:
+                continue
+            r = b.get_ytm()
+            dur = int(b.get_fix_days_before_mat(day_t))
+            group['Yield, %'] = round(r*100, 2)
+            group['Duration, days'] = dur
+            if 7<=dur<=190:
+                dur_group = 'от 7 до 190 дней'
+            elif 191<=dur<=370:
+                dur_group = 'от 191 до 370 дней'
+            elif 371 <= dur <= 1825:
+                dur_group = 'от 371 до 1825 дней'
+            elif dur > 1825:
+                dur_group = 'от 1825 дней более'
+            else:
+                dur_group = 'na'
+            group['Dur_group'] = dur_group
+        group = group.sort_values('tradedate', ascending = False)[:10]
+        pr = group['Yield, %']
+        v = group['volume']
+        wapr = (pr * v).sum() / v.sum()
+        group['wapr']= round(wapr,2)
+        return group
+
+    backets = df.groupby(by='ticker', group_keys=True).apply(prepare_trades_sample).droplevel(1).reset_index(drop=True)
+    
+    def calc_weights(group):
+        group['log_vol'] = group['volume'].apply(np.log) 
+        group['row_number'] = group.reset_index().index + 1
+        group['ai'] = (rep_date-group['tradedate']).dt.days
+        group['a_max'] = group['ai'].max()
+        group['count_trades'] = group['ticker'].count()
+        group['min_count_trades'] = group['ticker'].value_counts().min()
+        group['base_up'] =  (group['min_count_trades']**( - group['ai']/group['a_max'])) * group['log_vol']
+        group['base_down'] =  group['base_up'].sum()
+        group['wi'] = 1/4 * (group['base_up'] /  group['base_down'])
+        return group
+
+    backets2 = backets.groupby('Dur_group', group_keys=True).apply(calc_weights)
+    
+    def get_wapr_wi(group):
+        group['sum_wi'] = round(group['wi'].sum(),4)
+        return group[:1]
+
+    backets2 = backets2.groupby('ticker', group_keys=True).apply(get_wapr_wi).droplevel(1).reset_index(drop=True)[['Dur_group',
+                                                                                                  'tradedate', 'ticker', 'short_name', 
+                                                                                                  'currency', 'wapr', 'Duration, days', 
+                                                                                                  'sum_wi']].sort_values('Duration, days')
+    return backets2
 
 
 if __name__ == '__main__':

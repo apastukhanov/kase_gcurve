@@ -25,11 +25,15 @@ from api_tradernet import ( download_bonds,
                             make_df_from_json)
 
 
+# from bonds import Bond
+
+
 def download_gcurve_params() -> None:
     URL = "https://kase.kz/ru/documents/curve"
     r = requests.get(URL)
     with open("output.xls", "wb") as f:
         f.write(r.content)
+    print('gsec params are saved!')
 
 
 def get_tradedates() -> List:
@@ -178,6 +182,15 @@ def get_trades_from_tn_on_date(tradedate: datetime):
     df["Duration, days"] = 0.0
     return df
     
+
+def get_trades_from_tn_on_date_adv(tradedate: datetime):
+    sec_ids = get_secids_on_date(tradedate=tradedate, is_gov=True)
+    f = datetime(2018, 1, 1)
+    j = get_trade_hist(ticker=",".join([s +'.KZ' for s in sec_ids]), 
+                       from_=f, to_=tradedate, timeframe=1)
+    df = make_df_from_json(j)
+    return df
+
 
 def parse_sec_info(isin: str):
     file_path = f"sec_info/{isin}.csv"

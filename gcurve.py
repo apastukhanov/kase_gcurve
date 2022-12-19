@@ -109,13 +109,17 @@ def get_betas(tau, target_y, T):
     return curve, betas
 
 
-def min_square(tau, target_y, T):
+def min_square(tau, target_y, T, wi):
     curve, betas = get_betas(tau, target_y, T)
     y_t = curve.get_yield_t(T)
-    return np.sum((y_t - target_y)**2)
+    return np.sum(((y_t - target_y)**2) * wi)
 
 
-def find_yeild(y, t, tau0, tonia):
+def find_yeild(y, t, tau0, tonia, wi=None):
+    
+    if not isinstance(wi, np.ndarray):
+        wi = np.ones_like(y)
+        print(wi)
     
     def constr_func(x: float):
         curve, betas = get_betas(x[0], y, t)
@@ -126,7 +130,7 @@ def find_yeild(y, t, tau0, tonia):
         {'type': 'eq', "fun": constr_func},
     )
     
-    res = optimize.minimize(min_square, x0=tau0, bounds = ((0.076, 5), ), args=(y, t), 
+    res = optimize.minimize(min_square, x0=tau0, bounds = ((0.076, 5), ), args=(y, t, wi), 
                             constraints=constr)
     curve, betas = get_betas(res.x[0], y, t)
     return curve
